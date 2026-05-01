@@ -1,0 +1,41 @@
+
+namespace LogIn_Uni.Doctors
+{
+    public partial class frmDoctorMainScreen : Form
+    {
+        public frmDoctorMainScreen()
+        {
+            InitializeComponent();
+        }
+
+        private void frmMainScreen_Load(object sender, EventArgs e)
+        {
+
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+
+            LinearGradientBrush brush = new LinearGradientBrush(
+                this.ClientRectangle,
+                Color.FromArgb(255, 204, 128),   // اللون الأول
+                Color.FromArgb(0, 128, 128), // اللون الثاني
+                90f); // زاوية التدرج
+
+            e.Graphics.FillRectangle(brush, this.ClientRectangle);
+        }
+
+        private void coursesToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            frmDoctorCourses frm = new frmDoctorCourses();
+            frm.ShowDialog();
+        }
+
+        private void studentsToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            frmDocrorsStudents frm = new frmDocrorsStudents();
+            frm.ShowDialog();
+        }
+    }
+}
