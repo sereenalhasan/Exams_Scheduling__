@@ -1,0 +1,111 @@
+
+namespace LogIn_Uni
+{
+    public partial class FrmOptions : Form
+    {
+        private frmLogIn _frmLogin;
+        public FrmOptions( frmLogIn frm)
+        {
+            InitializeComponent();
+            _frmLogin = frm;
+
+        }
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+
+            LinearGradientBrush brush = new LinearGradientBrush(
+                this.ClientRectangle,
+                Color.FromArgb(255, 204, 128),   // اللون الأول
+                Color.FromArgb(0, 128, 128), // اللون الثاني
+                90f); // زاوية التدرج
+
+            e.Graphics.FillRectangle(brush, this.ClientRectangle);
+        }
+
+        //================================
+        //==Scheduling
+        //================================
+        private void examSchdulerToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+             SchedulingDataLoader _loader = new SchedulingDataLoader();
+            _loader.LoadAll();
+
+             clsScheduler _schedulerObj;
+            _schedulerObj = new clsScheduler(_loader);
+            List<Chromosome> _population;
+            _population = _schedulerObj.CreateInitialPopulation(100, enFormulaType.enWeightedFormula);
+
+
+
+            frmUserInput GetUserInput = new frmUserInput(_population);
+            GetUserInput.ShowDialog();
+        }
+
+
+        //================================
+        //==Close main menu
+        //================================
+        private void button1_Click(object sender, EventArgs e)
+        {
+            this.Close();
+
+        }
+
+        //================================
+        //==Show UserCard
+        //================================
+        private void currentUserInfoToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            frmShowCurrentUserInfo frm1 = new frmShowCurrentUserInfo();
+            frm1.ShowDialog();
+        }
+        //================================
+        //==Show UserForm 
+        //================================
+        private void usersToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            UsersList frm1 = new UsersList();
+            frm1.ShowDialog();
+        }
+        //================================
+        //==Show UserInput form 
+        //================================
+        //private void button2_Click(object sender, EventArgs e)
+        //{
+        //    Form frmUserIn = new frmUserInput();
+        //    frmUserIn.ShowDialog();
+        //}
+
+        
+        public SchedulingDataLoader _loader = new SchedulingDataLoader();
+        public  Dictionary<int, List<(int, string, int, int)>> _allStudents = new Dictionary<int, List<(int, string, int, int)>>();
+
+        private void studentsToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            _allStudents = ES_Business.Students.clsStudentSchedule.GetAllStudentsData();
+
+           frmStudentsList frm1 = new frmStudentsList(_loader,_allStudents);
+            frm1.ShowDialog();
+        }
+
+        private void FrmOptions_Load(object sender, EventArgs e)
+        {
+            _loader.LoadAll();
+            _allStudents= ES_Business.Students.clsStudentSchedule.GetAllStudentsData();
+        }
+
+        private void doctorsToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            frmDoctorCourses frm = new frmDoctorCourses();
+            frm.ShowDialog();
+        }
+
+        private void signOutToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            clsGloable.CurrentUser = null;
+            
+            _frmLogin.Show();
+           
+            this.Close();
+        }
