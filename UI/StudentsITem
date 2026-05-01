@@ -1,0 +1,296 @@
+
+namespace LogIn_Uni.Students
+{
+    public partial class frmStudentsList : Form
+    {
+        private SchedulingDataLoader _loader;
+        private Dictionary<int, List<(int, string, int, int)>> _allStudents = new Dictionary<int, List<(int, string, int, int)>>();
+        public frmStudentsList(SchedulingDataLoader Loader, Dictionary<int, List<(int, string, int, int)>> allStudents)
+        {
+            InitializeComponent();
+            _loader = Loader;
+            _allStudents = allStudents;
+
+        }
+
+        private void frmStudentsList_Load(object sender, EventArgs e)
+        {
+            LoadStudentsWith2OrMoreExamsPerDay();
+
+            txtStudentID.Visible = false;
+
+            cbFilterStudents.SelectedIndex = 0;
+            lblNumOfStudents.Text = "Students Number : " + dgvListStudents.Rows.Count.ToString();
+
+
+        }
+
+        //=======================================================
+        //=======================================================
+
+        private Dictionary<int, List<(int CourseID, string Rooms, int SessionDateID, int TimeSlotID)>>
+         GetStudentsWith2ExamsPerDay()
+        {
+            Dictionary<int, List<(int, string, int, int)>> allStudents = _allStudents; ;
+
+            var result = new Dictionary<int, List<(int, string, int, int)>>();
+
+            foreach (var student in allStudents)
+            {
+                var groupedByDate = student.Value
+                    .GroupBy(x => x.Item3) // SessionDateID
+                    .Where(g => g.Count() >= 1); // 2 or more exams same day
+
+                if (groupedByDate.Any())
+                {
+                    result[student.Key] = student.Value;
+                }
+            }
+
+            return result;
+        }
+        private void LoadStudentsWith2OrMoreExamsPerDay()
+        {
+            dgvListStudents.SuspendLayout();
+            dgvListStudents.Rows.Clear();
+            dgvListStudents.Columns.Clear();
+
+            dgvListStudents.Columns.Add("StudentID", "Student ID");
+            dgvListStudents.Columns.Add("CourseName", "Course Name");
+            dgvListStudents.Columns.Add("Date", "Exam Date");
+            dgvListStudents.Columns.Add("Time", "Time Slot");
+            dgvListStudents.Columns.Add("Rooms", "Rooms");
+            dgvListStudents.Columns.Add("ExamsPerDay", "Exams Per Day"); 
+
+            var students = GetStudentsWith2ExamsPerDay();
+
+            foreach (var student in students)
+            {
+                int studentID = student.Key;
+
+                //  compute per-day counts once per student
+                var countPerDay = student.Value
+                    .GroupBy(x => x.Item3) // SessionDateID
+                    .ToDictionary(g => g.Key, g => g.Count());
+
+                foreach (var session in student.Value)
+                {
+                    string courseName =
+                        _loader.GetCourseName(session.Item1).CourseName;
+
+                    string examDate =
+                        _loader.Dates[session.Item3]
+                        .ExamDate.ToShortDateString();
+
+                    var slot =
+                        _loader.GetTimeSlotInfo(session.Item4);
+
+                    string time =
+                        slot.StartTimeSlot + " - " + slot.EndTimeSlot;
+
+                    int examsPerDay = countPerDay[session.Item3]; 
+
+                    dgvListStudents.Rows.Add(
+                        studentID,
+                        courseName,
+                        examDate,
+                        time,
+                        session.Item2,
+                        examsPerDay);
+                }
+            }
+
+            dgvListStudents.AutoSizeColumnsMode =
+                DataGridViewAutoSizeColumnsMode.Fill;
+
+            dgvListStudents.ResumeLayout();
+        }
+
+        //=======================================================
+        //=======================================================
+
+        private Dictionary<int, List<(int CourseID, string Rooms, int SessionDateID, int TimeSlotID)>> LoadStudentsWithConflicts()
+        {
+            Dictionary<int, List<(int, string, int, int)>> allStudents =
+               _allStudents;
+
+            var result =
+                new Dictionary<int, List<(int, string, int, int)>>();
+
+            foreach (var student in allStudents)
+            {
+                // GROUP BY Date + TimeSlot (REAL CONFLICT KEY)
+                var conflicts = student.Value
+                    .GroupBy(x => new { x.Item3, x.Item4 }) // SessionDateID + TimeSlotID
+                    .Where(g => g.Count() >= 2)
+                    .ToList();
+
+                if (conflicts.Any())
+                {
+                    result[student.Key] = student.Value;
+                }
+            }
+
+            return result;
+        }
+        private void LoadStudentsWithConflicts_dgv()
+        {
+            dgvListStudents.SuspendLayout();
+            dgvListStudents.Rows.Clear();
+            dgvListStudents.Columns.Clear();
+
+            dgvListStudents.Columns.Add("StudentID", "Student ID");
+            dgvListStudents.Columns.Add("CourseName", "Course Name");
+            dgvListStudents.Columns.Add("Date", "Exam Date");
+            dgvListStudents.Columns.Add("Time", "Time Slot");
+            dgvListStudents.Columns.Add("Rooms", "Rooms");
+
+            var students = LoadStudentsWithConflicts();
+
+            foreach (var student in students)
+            {
+                int studentID = student.Key;
+
+                foreach (var session in student.Value)
+                {
+                    string courseName =
+                        _loader.GetCourseName(session.Item1).CourseName;
+
+                    string examDate =
+                        _loader.Dates[session.Item3]
+                        .ExamDate.ToShortDateString();
+
+                    var slot =
+                        _loader.GetTimeSlotInfo(session.Item4);
+
+                    string time =
+                        slot.StartTimeSlot + " - " + slot.EndTimeSlot;
+
+                    dgvListStudents.Rows.Add(
+                        studentID,
+                        courseName,
+                        examDate,
+                        time,
+                        session.Item2);
+                }
+            }
+
+            dgvListStudents.AutoSizeColumnsMode =
+                DataGridViewAutoSizeColumnsMode.Fill;
+
+            dgvListStudents.ResumeLayout();
+        }
+
+        //=======================================================
+        //=======================================================
+        private void LoadStudentByID()
+        {
+            if (!int.TryParse(txtStudentID.Text, out int studentID))
+            {
+               // MessageBox.Show("Please enter a valid Student ID");
+                return;
+            }
+
+            Dictionary<int, List<(int, string, int, int)>> allStudents =
+              _allStudents;
+
+            dgvListStudents.SuspendLayout();
+            dgvListStudents.Rows.Clear();
+            dgvListStudents.Columns.Clear();
+
+            dgvListStudents.Columns.Add("StudentID", "Student ID");
+            dgvListStudents.Columns.Add("CourseName", "Course Name");
+            dgvListStudents.Columns.Add("Date", "Exam Date");
+            dgvListStudents.Columns.Add("Time", "Time Slot");
+            dgvListStudents.Columns.Add("Rooms", "Rooms");
+
+            // only selected student
+            if (allStudents.TryGetValue(studentID, out var sessions))
+            {
+                foreach (var session in sessions)
+                {
+                    string courseName =
+                        _loader.GetCourseName(session.Item1).CourseName;
+
+                    string examDate =
+                        _loader.Dates[session.Item3]
+                        .ExamDate.ToShortDateString();
+
+                    var slot =
+                        _loader.GetTimeSlotInfo(session.Item4);
+
+                    string time =
+                        slot.StartTimeSlot + " - " + slot.EndTimeSlot;
+
+                    dgvListStudents.Rows.Add(
+                        studentID,
+                        courseName,
+                        examDate,
+                        time,
+                        session.Item2);
+                }
+            }
+            else
+            {
+                MessageBox.Show("Student not found");
+            }
+
+            dgvListStudents.AutoSizeColumnsMode =
+                DataGridViewAutoSizeColumnsMode.Fill;
+
+            dgvListStudents.ResumeLayout();
+        }
+        //=======================================================
+        //=======================================================
+
+
+        private void cbFilterStudents_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            
+            if (cbFilterStudents.SelectedItem == null)
+                return;
+
+            string selected = cbFilterStudents.SelectedItem.ToString();
+
+            switch (selected)
+            {
+                case "None":
+                    LoadStudentsWith2OrMoreExamsPerDay();
+                    txtStudentID.Visible = false;
+                    break;
+
+                case "Two or more exams at the same time":
+                    LoadStudentsWithConflicts_dgv();
+                    txtStudentID.Visible = false;
+                    break;
+
+                case "StudentID":
+                    {
+                        txtStudentID.Visible = true;
+
+                        if (!string.IsNullOrWhiteSpace(txtStudentID.Text))
+
+                        lblNumOfStudents.Text =
+                            "Students Number : " + dgvListStudents.Rows.Count;
+
+                    }
+                    break;
+
+            }
+
+            lblNumOfStudents.Text =
+                "Students Number : " + dgvListStudents.Rows.Count;
+        }
+
+        private void txtStudentID_TextChanged(object sender, EventArgs e)
+        {
+            LoadStudentByID();
+
+        }
+
+        private void btnCloseStudentList_Click(object sender, EventArgs e)
+        {
+            this.Close();
+        }
+    }
+}
