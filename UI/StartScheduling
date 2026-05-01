@@ -1,0 +1,521 @@
+ public partial class frmExamSchedule : Form
+    {
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+
+            LinearGradientBrush brush = new LinearGradientBrush(
+                this.ClientRectangle,
+                Color.FromArgb(255, 204, 128),   // اللون الأول
+                Color.FromArgb(0, 128, 128), // اللون الثاني
+                90f); // زاوية التدرج
+
+            e.Graphics.FillRectangle(brush, this.ClientRectangle);
+        }
+
+        private UserInput _dataFromUser;
+        private List<Chromosome> _Population;
+        private List<Chromosome> OldPop;
+
+        private SchedulingDataLoader _loader;
+        private clsGAEngine _engine;
+        private (Chromosome bestChromosome, List<GenerationStats> stats) Results_WeightedFormula;
+        private (Chromosome bestChromosome, List<GenerationStats> stats) Results_Hard_SoftConstraintsFormula;
+
+
+        public frmExamSchedule(UserInput DataFromUser,SchedulingDataLoader Loader,List<Chromosome>Population)
+        {
+            InitializeComponent();
+            _loader = Loader;
+            _dataFromUser = DataFromUser;
+            _engine = new clsGAEngine(DataFromUser ,Loader);
+            lblRunningTime.Visible = false;
+            _Population = Population;
+            OldPop = Population;
+            lblRunningTime.Visible = false;
+        }
+
+        private bool HasValidResults((Chromosome bestChromosome, List<GenerationStats> stats) Results)
+        {
+            return Results.bestChromosome != null
+                && Results.stats != null
+                && Results.stats.Count != 0;
+        }
+        private void CheckMissingExams((Chromosome bestChromosome, List<GenerationStats> stats) Results )
+        {
+            var scheduledIDs = new HashSet<int>(
+                Results.bestChromosome.Genes.Select(g => g.ExamID));
+
+            var missingExams = _loader.ExamsIDs
+                .Where(id => !scheduledIDs.Contains(id))
+                .ToList();
+
+            if (missingExams.Count > 0)
+            {
+                StringBuilder sb = new StringBuilder();
+
+                sb.AppendLine($"{missingExams.Count} exam(s) not scheduled: \n");
+
+                foreach (int examID in missingExams)
+                {
+                    int courseID = _loader.Exams[examID].CourseID;
+                    int requiredCapacity = _loader.Exams[examID].RequiredCapacity;
+
+                    bool hasSupervisors =
+                        _loader.CourseDoctorMap.TryGetValue(courseID, out List<int> supervisors);
+
+                    sb.AppendLine($"Exam {examID}:");
+                    sb.AppendLine($"  CourseID         : {courseID}");
+                    sb.AppendLine($"  RequiredCapacity : {requiredCapacity}");
+                    sb.AppendLine($"  HasSupervisors   : {hasSupervisors && supervisors?.Count > 0}");
+                    sb.AppendLine("---");
+                }
+
+                MessageBox.Show(
+                    sb.ToString(),
+                    "Missing Exams",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
+            else
+            {
+                MessageBox.Show(
+                    $"All {_loader.ExamsIDs.Count} exams scheduled successfully!\n" +
+                    $"Fitness Score : {Results.bestChromosome.Fitness_Score:F4}",
+                    "Success",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+            }
+        }
+        private List<GeneDisplayRow> LoadGenesToGrid((Chromosome bestChromosome, List<GenerationStats> stats)  Results)
+        {
+            List<GeneDisplayRow> geneList = new List<GeneDisplayRow>()  ;
+
+            if (Results.bestChromosome == null)
+                return null;
+
+            foreach (Gene gene in Results.bestChromosome.Genes)
+            {
+                GeneDisplayRow g = new GeneDisplayRow();
+
+                // Course Name
+                g.CourseName =
+                    _loader.GetCourseName(
+                        _loader.Exams[gene.ExamID].CourseID
+                    ).CourseName;
+
+                // Room Names
+                g.RoomName = string.Join(", ",
+                    gene.RoomIDs
+                        .Where(roomID => _loader.Rooms.ContainsKey(roomID))
+                        .Select(roomID => _loader.Rooms[roomID].RoomNo)
+                );
+
+                // Supervisor
+                g.SupervisorID = gene.SupervisorID;
+
+                // Date
+                g.Date =
+                    _loader.Dates[gene.ExamDateID]
+                    .ExamDate
+                    .ToShortDateString();
+
+                // Time Slot
+                var timeSlot = _loader.GetTimeSlotInfo(gene.TimeSlotID);
+
+                g.TimeSlot =
+                    timeSlot.StartTimeSlot +
+                    " - " +
+                    timeSlot.EndTimeSlot;
+
+                // Fitness Score
+                g.FitnessScore =
+                    Results.bestChromosome.Fitness_Score;
+
+                geneList.Add(g);
+            }
+
+            return geneList;
+        }
+        private void btnStartScheduling_Click(object sender, EventArgs e)
+        {
+            DateTime startTime = DateTime.Now;
+
+            clsFormulas.enFormulaType FormulaType=clsFormulas.enFormulaType.enWeightedFormula;
+            List<GeneDisplayRow> geneList = new List<GeneDisplayRow>();
+            List<GeneDisplayRow> geneList_2 = new List<GeneDisplayRow>();
+
+
+
+            switch ((clsFormulas.enFormulaType)tcFormulas.SelectedIndex)
+            {
+                case clsFormulas.enFormulaType.enWeightedFormula:
+                    {
+
+                        FormulaType = clsFormulas.enFormulaType.enWeightedFormula;
+                        Results_WeightedFormula = _engine.Run(FormulaType,_Population);
+                        //Validation Checks : 
+                        if (!HasValidResults(Results_WeightedFormula))
+                        {
+                            MessageBox.Show("There's no data returned after running the algorithm\n" +
+                                "Either Best Chromosome = NULL or states = Null\n" +
+                                "Please check the implementation!",
+                                "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            return;
+                        }
+                        //  Check which exams are missing from the best chromosome
+                        CheckMissingExams(Results_WeightedFormula);
+
+                        geneList = LoadGenesToGrid(Results_WeightedFormula);
+
+
+
+                        DateTime endTime = DateTime.Now;
+                        TimeSpan runningTime = endTime.Subtract(startTime);
+
+                        dataGridView1.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+                        dataGridView1.DataSource = geneList;
+                        lblRunningTimeFormula2.Visible = false;
+                        lblRunningTime.Visible = true;
+                        lblRunningTime.Text = $"Total Running Time: {runningTime.Minutes:D2}:{runningTime.Seconds:D2}.{runningTime.Milliseconds:D3}";
+                        
+                    }
+                    break;
+                case clsFormulas.enFormulaType.enPenaltyFormula:
+                    {
+                        FormulaType = clsFormulas.enFormulaType.enPenaltyFormula;
+                        Results_Hard_SoftConstraintsFormula = _engine.Run(FormulaType,_Population);
+                        //Validation Checks : 
+
+                        if (!HasValidResults(Results_Hard_SoftConstraintsFormula))
+                        {
+                            MessageBox.Show("There's no data returned after running the algorithm\n" +
+                                "Either Best Chromosome = NULL or states = Null\n" +
+                                "Please check the implementation!",
+                                "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            return;
+                        }
+                        CheckMissingExams(Results_Hard_SoftConstraintsFormula);
+
+                        geneList = LoadGenesToGrid(Results_Hard_SoftConstraintsFormula);
+
+                        DateTime endTime = DateTime.Now;
+                        TimeSpan runningTime = endTime.Subtract(startTime);
+
+                        dataGridView2.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+                        dataGridView2.DataSource = geneList;
+                        lblRunningTime.Visible = false;
+                        lblRunningTimeFormula2.Visible = true;
+                        lblRunningTimeFormula2.Text = $"Total Running Time : {runningTime.Minutes:D2}:{runningTime.Seconds:D2}.{runningTime.Milliseconds:D3}";
+
+                    }
+                    break;
+                case clsFormulas.enFormulaType.both:
+                    {
+                        FormulaType = clsFormulas.enFormulaType.both;
+
+                        Results_WeightedFormula = _engine.Run(clsFormulas.enFormulaType.enWeightedFormula,_Population);
+                        DateTime endTime_weights = DateTime.Now;
+                        Results_Hard_SoftConstraintsFormula = _engine.Run(clsFormulas.enFormulaType.enPenaltyFormula,_Population);
+                        DateTime endTine_Hard_SoftConstraints = DateTime.Now;
+                        if (!HasValidResults(Results_WeightedFormula))
+                        {
+                            MessageBox.Show("There's no data returned after running the algorithm\n" +
+                                "Either Best Chromosome = NULL or states = Null\n" +
+                                "Please check the implementation!",
+                                "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            return;
+                        }
+                        if (!HasValidResults(Results_Hard_SoftConstraintsFormula))
+                        {
+                            MessageBox.Show("There's no data returned after running the algorithm\n" +
+                                "Either Best Chromosome = NULL or states = Null\n" +
+                                "Please check the implementation!",
+                                "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            return;
+                        }
+
+                        CheckMissingExams(Results_WeightedFormula);
+                        CheckMissingExams(Results_Hard_SoftConstraintsFormula);
+                        geneList = LoadGenesToGrid(Results_WeightedFormula);
+                        geneList_2 = LoadGenesToGrid(Results_Hard_SoftConstraintsFormula);
+
+                       
+                        TimeSpan runningTime_Weights = endTime_weights.Subtract(startTime);
+                        TimeSpan runningTime_Hard_SoftConstraint = endTine_Hard_SoftConstraints.Subtract(startTime);
+
+
+                        dataGridView3.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+                        dataGridView4.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+
+                        dataGridView3.DataSource = geneList;
+                        dataGridView4.DataSource = geneList_2;
+                        lblRunningTime.Visible = true;
+                        lblRunningTimeFormula2.Visible = true;
+                        lblRunningTime.Text = $"Total Running Time [weights]: {runningTime_Weights.Minutes:D2}:{runningTime_Weights.Seconds:D2}.{runningTime_Weights.Milliseconds:D3}";
+                        lblRunningTimeFormula2.Text = $"Total Running Time [Hard_Soft]: {runningTime_Hard_SoftConstraint.Minutes:D2}:" +
+                            $"{runningTime_Hard_SoftConstraint.Seconds:D2}.{runningTime_Hard_SoftConstraint.Milliseconds:D3}";
+
+                    }
+
+                    break;
+
+            }
+
+        }
+
+
+
+        //private void btnDisplayChart_Click(object sender, EventArgs e)
+        //{
+        //    frmCharts Chart = new frmCharts();
+        //    Chart.Show();
+        //    Chart.DisplayChart(Results.stats);
+        //}
+     
+        private void btnResetData_Click(object sender, EventArgs e)
+        {
+
+            this.Close();
+            frmUserInput frm = new frmUserInput(OldPop);
+
+            frm.ShowDialog();
+
+        }
+
+        private void dataGridView1_CellContentClick(object sender, DataGridViewCellEventArgs e)
+        {
+
+        }
+
+        //===========================================================
+        //===========================================================
+        private void frmExamSchedule_Load(object sender, EventArgs e)
+        {
+            cbChooseFormula.SelectedIndex = -1;
+
+            lblSchedluingFormula.Visible = false;
+            cbChooseFormula.Visible = false;
+        }
+
+        private bool SaveScheduleByFormula(
+       (Chromosome bestChromosome, List<GenerationStats> stats) Results)
+        {
+            List<SaveFormGene> convertedGenes =
+                Results.bestChromosome.Genes
+                .SelectMany(g => g.RoomIDs.Select(roomId => new SaveFormGene
+                {
+                    ExamID = g.ExamID,
+                    RoomID = roomId,
+                    SupervisorID = g.SupervisorID,
+                    ExamDateID = g.ExamDateID,
+                    TimeSlotID = g.TimeSlotID
+                }))
+                .ToList();
+
+            return SaveFinalSchedule.SaveSchedule(convertedGenes);
+        }
+
+        private void ShowSaveResult(bool result, string formulaName)
+        {
+            if (result)
+            {
+                MessageBox.Show(
+                    $"Schedule saved successfully [{formulaName}]",
+                    "Save",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+            }
+            else
+            {
+                MessageBox.Show(
+                    $"Schedule can't be saved [{formulaName}]",
+                    "Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
+        }
+        private bool CheckScheduleGenerated(
+        (Chromosome bestChromosome, List<GenerationStats> stats) results)
+        {
+            if (results.bestChromosome == null)
+            {
+                errorProvider_Schedule.SetError(
+                    button1,
+                    "Please generate schedule first.");
+
+                MessageBox.Show(
+                    "Please click Scheduling button first.",
+                    "No Schedule Found",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+
+                return false;
+            }
+
+            errorProvider_Schedule.SetError(button1, "");
+            return true;
+        }
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+            switch ((clsFormulas.enFormulaType)tcFormulas.SelectedIndex)
+            {
+                case clsFormulas.enFormulaType.enWeightedFormula:
+                    {
+                        if (!CheckScheduleGenerated(Results_WeightedFormula))
+                            return;
+
+                        if (MessageBox.Show(
+                            "Are you sure you want to save using Weighted Formula?",
+                            "Confirm Save",
+                            MessageBoxButtons.YesNo,
+                            MessageBoxIcon.Question)
+                            != DialogResult.Yes)
+                            return;
+
+                        bool result = SaveScheduleByFormula(Results_WeightedFormula);
+                        ShowSaveResult(result, "Weighted Formula");
+                    }
+                    break;
+
+                case clsFormulas.enFormulaType.enPenaltyFormula:
+                    {
+                        if (!CheckScheduleGenerated(Results_Hard_SoftConstraintsFormula))
+                            return;
+
+                        if (MessageBox.Show(
+                            "Are you sure you want to save using Hard/Soft Constraint Formula?",
+                            "Confirm Save",
+                            MessageBoxButtons.YesNo,
+                            MessageBoxIcon.Question)
+                            != DialogResult.Yes)
+                            return;
+
+                        bool result = SaveScheduleByFormula(
+                            Results_Hard_SoftConstraintsFormula);
+
+                        ShowSaveResult(result, "Hard/Soft Constraint Formula");
+                    }
+                    break;
+
+                case clsFormulas.enFormulaType.both:
+                    {
+                        errorProvider_Save.SetError(cbChooseFormula, "");
+
+                        // must choose formula
+                        if (cbChooseFormula.SelectedIndex == -1)
+                        {
+                            errorProvider_Save.SetError(
+                                cbChooseFormula,
+                                "Please choose a formula first.");
+
+                            cbChooseFormula.Focus();
+                            return;
+                        }
+
+                        bool isWeighted = cbChooseFormula.SelectedIndex == 0;
+
+                        // check correct schedule exists
+                        if (isWeighted)
+                        {
+                            if (!CheckScheduleGenerated(Results_WeightedFormula))
+                                return;
+                        }
+                        else
+                        {
+                            if (!CheckScheduleGenerated(Results_Hard_SoftConstraintsFormula))
+                                return;
+                        }
+
+                        string formulaName = isWeighted
+                            ? "Weighted Formula"
+                            : "Hard/Soft Constraint Formula";
+
+                        if (MessageBox.Show(
+                            $"Are you sure you want to save using:\n{formulaName} ?",
+                            "Confirm Save",
+                            MessageBoxButtons.YesNo,
+                            MessageBoxIcon.Question)
+                            != DialogResult.Yes)
+                            return;
+
+                        bool result = isWeighted
+                            ? SaveScheduleByFormula(Results_WeightedFormula)
+                            : SaveScheduleByFormula(Results_Hard_SoftConstraintsFormula);
+
+                        ShowSaveResult(result, formulaName);
+                    }
+                    break;
+            }
+        }
+        private void button2_Click(object sender, EventArgs e)
+        {
+
+        }
+
+
+        private void tcFormulas_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            var selected = (clsFormulas.enFormulaType)tcFormulas.SelectedIndex;
+
+            switch (selected)
+            {
+                case clsFormulas.enFormulaType.enWeightedFormula:
+                    lblRunningTime.Visible = true;
+                    lblRunningTimeFormula2.Visible = false;
+
+                    cbChooseFormula.Visible = false;
+                    lblSchedluingFormula.Visible = false;
+
+                    break;
+
+                case clsFormulas.enFormulaType.enPenaltyFormula:
+                    lblRunningTime.Visible = false;
+                    lblRunningTimeFormula2.Visible = true;
+
+                    cbChooseFormula.Visible = false;
+                    lblSchedluingFormula.Visible = false ;
+
+
+                    break;
+
+                case clsFormulas.enFormulaType.both:
+                    lblRunningTime.Visible = true;
+                    lblRunningTimeFormula2.Visible = true;
+
+                    cbChooseFormula.Visible = true;
+                    lblSchedluingFormula.Visible = true;
+                    cbChooseFormula.SelectedIndex = -1;
+                    break;
+            }
+        }
+
+        private void btnDisplayCharts_Click(object sender, EventArgs e)
+        {
+            frmCharts frm = new frmCharts();
+            switch ((clsFormulas.enFormulaType)tcFormulas.SelectedIndex)
+            {
+                case clsFormulas.enFormulaType.enWeightedFormula:
+                    {
+                       frm.DisplayChart(Results_WeightedFormula.stats);
+                        frm.Show();
+
+                    }
+                    break;
+                case clsFormulas.enFormulaType.enPenaltyFormula:
+                    { frm.DisplayChart(Results_Hard_SoftConstraintsFormula.stats);
+                        frm.Show();
+                    }
+                    break;
+                case clsFormulas.enFormulaType.both:
+                   //frm.DisplayChart(Results_WeightedFormula.stats);
+                   //frm.DisplayChart(Results_WeightedFormula.stats);
+
+
+                    break;
+
+            }
+        }
+    }
+}
