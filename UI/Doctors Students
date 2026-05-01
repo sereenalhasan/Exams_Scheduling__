@@ -1,0 +1,65 @@
+namespace LogIn_Uni.Doctors
+{
+    public partial class frmDocrorsStudents : Form
+    {
+        public frmDocrorsStudents()
+        {
+            InitializeComponent();
+        }
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+
+            LinearGradientBrush brush = new LinearGradientBrush(
+                this.ClientRectangle,
+                Color.FromArgb(255, 204, 128),   // اللون الأول
+                Color.FromArgb(0, 128, 128), // اللون الثاني
+                90f); // زاوية التدرج
+
+            e.Graphics.FillRectangle(brush, this.ClientRectangle);
+        }
+
+        private DataTable _dtStudentsCourses;
+        private void frmDocrorsStudents_Load(object sender, EventArgs e)
+        {
+            if (clsGloable.CurrentUser.UserName == "Admin")
+                _dtStudentsCourses =
+                 DoctorsStudents.GetStudentsCoursesWithDoctors();
+            else
+                _dtStudentsCourses =
+                 DoctorsStudents.GetStudentsCoursesWithDoctors_UserDoctor(clsGloable.CurrentUser.DoctorID);
+
+            dgvDoctorCourseStudents.DataSource = _dtStudentsCourses;
+
+            dgvDoctorCourseStudents.AutoSizeColumnsMode =
+                DataGridViewAutoSizeColumnsMode.Fill;
+
+            dgvDoctorCourseStudents.ReadOnly = true;
+        }
+
+        private void txtDoctorsStudents_TextChanged(object sender, EventArgs e)
+        {
+
+            if (_dtStudentsCourses == null)
+                return;
+
+            string text = txtDoctorsStudents.Text.Trim();
+
+            if (string.IsNullOrEmpty(text))
+            {
+                _dtStudentsCourses.DefaultView.RowFilter = "";
+                return;
+            }
+
+            if (int.TryParse(text, out int studentID))
+            {
+                _dtStudentsCourses.DefaultView.RowFilter =
+                    $"StudentID = {studentID}";
+            }
+            else
+            {
+                _dtStudentsCourses.DefaultView.RowFilter = "";
+            }
+        }
+    }
+}
