@@ -1,0 +1,137 @@
+
+namespace LogIn_Uni
+{
+    public partial class frmUserInput : Form
+    {
+        private SchedulingDataLoader _loader=new SchedulingDataLoader();
+        private UserInput DataFromUser = new UserInput();
+        private List<Chromosome> _population;
+        public frmUserInput(List<Chromosome>population)
+        {
+            InitializeComponent();
+            comboBoxElitesim.SelectedIndex = 1;
+            comboBoxSelectionType.SelectedIndex = 0;
+            comboBoxPC.SelectedIndex = 7;
+            comboBoxCrossOver.SelectedIndex = 0;
+            comboBoxPM.SelectedIndex = 0;
+            _loader.LoadAll();
+            _population = population;
+        }
+        //here i set a default value for the combo_box(s)----------------------------
+
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+
+            LinearGradientBrush brush = new LinearGradientBrush(
+                this.ClientRectangle,
+                Color.FromArgb(255, 204, 128),   // اللون الأول
+                Color.FromArgb(0, 128, 128), // اللون الثاني
+                90f); // زاوية التدرج
+
+            e.Graphics.FillRectangle(brush, this.ClientRectangle);
+        }
+
+        private void txtBoxPopulationSize_Validating(object sender, CancelEventArgs e)
+        {
+            if (string.IsNullOrEmpty(txtBoxPopulationSize.Text.Trim()))
+            {
+                e.Cancel = true;
+                txtBoxPopulationSize.Focus();
+                errorProvider1.SetError(txtBoxPopulationSize, "Population Size should have a value");
+            }
+            else
+            {
+                e.Cancel = false;
+                errorProvider1.SetError(txtBoxPopulationSize, "");
+
+            }
+        }
+        private void txtBoxGenerationSize_Validating(object sender, CancelEventArgs e)
+        {
+            if (string.IsNullOrEmpty(txtBoxGenerationSize.Text.Trim()))
+            {
+                e.Cancel = true;
+                txtBoxGenerationSize.Focus();
+                errorProvider1.SetError(txtBoxGenerationSize, "generation Size should have a value");
+            }
+            else
+            {
+                e.Cancel = false;
+                errorProvider1.SetError(txtBoxGenerationSize, "");
+
+            }
+        }
+
+        private void txtBoxGenerationSize_KeyPress(object sender, KeyPressEventArgs e)
+        {
+            if (!char.IsDigit(e.KeyChar) && e.KeyChar != (char)Keys.Back)
+            {
+                e.Handled = true; // Block the key
+            }
+        }
+
+        private void txtBoxPopulationSize_KeyPress(object sender, KeyPressEventArgs e)
+        {
+            if (!char.IsDigit(e.KeyChar) && e.KeyChar != (char)Keys.Back)
+            {
+                e.Handled = true; // Block the key
+            }
+        }
+
+
+        //Getting the data from user
+        //and loading all data required from database
+        //to send it to the scheduler form---------------------------------------------
+        private void btnDataFromUser_Click(object sender, EventArgs e)
+        {
+            if (!ValidateChildren())
+            {
+                MessageBox.Show("Please fill all the data required","Missing Data",MessageBoxButtons.OK,MessageBoxIcon.Error);
+                return;
+            }
+            GetDateReadyForScheduling();
+
+            this.Close();
+            Form startScheduling = new frmExamSchedule(DataFromUser, _loader, _population);
+
+            startScheduling.ShowDialog();
+
+        }
+        private void GetDateReadyForScheduling()
+        {
+
+            DataFromUser.elitismValue = Convert.ToInt16(comboBoxElitesim.SelectedItem);
+            DataFromUser.generationSize = Convert.ToInt16(txtBoxGenerationSize.Text.Trim());
+            DataFromUser.populationSize = Convert.ToInt16(txtBoxPopulationSize.Text.Trim());
+            DataFromUser.PC = Convert.ToDouble(comboBoxPC.SelectedItem);
+            DataFromUser.PM = Convert.ToDouble(comboBoxPM.SelectedItem);
+            switch (comboBoxSelectionType.Text)
+            {
+                case "Age":
+                    DataFromUser.SelectionType = UserInput.enSelectionType.Age;
+                    break;
+                case "Rank":
+                    DataFromUser.SelectionType = UserInput.enSelectionType.Rank;
+                    break;
+                case "Tournament":
+                    DataFromUser.SelectionType = UserInput.enSelectionType.Tournament;
+                    break;
+                case "Roulette_Wheel":
+                    DataFromUser.SelectionType = UserInput.enSelectionType.Roulette_Wheel;
+                    break;
+            }
+            switch (comboBoxCrossOver.Text)
+            {
+                case "One Point":
+                    DataFromUser.CrossoverType = UserInput.enCrossoverType.SinglePoint;
+                    break;
+                case "Two Point":
+                    DataFromUser.CrossoverType = UserInput.enCrossoverType.TwoPoint;
+                    break;
+                case "Uniform":
+                    DataFromUser.CrossoverType = UserInput.enCrossoverType.Uniform;
+                    break;
+            }
+        }
