@@ -1,0 +1,76 @@
+
+namespace LogIn_Uni.Doctors
+{
+    public partial class frmDoctorCourses : Form
+    {
+        public frmDoctorCourses()
+        {
+            InitializeComponent();
+        }
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+
+            LinearGradientBrush brush = new LinearGradientBrush(
+                this.ClientRectangle,
+                Color.FromArgb(255, 204, 128),   // اللون الأول
+                Color.FromArgb(0, 128, 128), // اللون الثاني
+                90f); // زاوية التدرج
+
+            e.Graphics.FillRectangle(brush, this.ClientRectangle);
+        }
+
+        private DataTable _dtDoctorCourses;
+        private void frmDoctorCourses_Load(object sender, EventArgs e)
+        {
+            if (clsGloable.CurrentUser.UserName == "Admin")
+            {
+                _dtDoctorCourses = DoctorsCourses.GetAllDoctorsCourses();
+                txtDoctorID.Visible = true;
+                lblDoctorID.Visible = true;
+            }
+            else
+            {
+                _dtDoctorCourses = DoctorsCourses.GetAllDoctorsCourses_UserDoctor(clsGloable.CurrentUser.DoctorID);
+                txtDoctorID.Visible = false;
+                lblDoctorID.Visible = false;
+            }
+
+            dgvDoctorCourses.DataSource = _dtDoctorCourses;
+
+            dgvDoctorCourses.AutoSizeColumnsMode =
+                DataGridViewAutoSizeColumnsMode.Fill;
+
+            dgvDoctorCourses.SelectionMode =
+                DataGridViewSelectionMode.FullRowSelect;
+
+            dgvDoctorCourses.ReadOnly = true;
+        }
+
+     
+
+        private void textBox1_TextChanged(object sender, EventArgs e)
+        {
+            if (_dtDoctorCourses == null)
+                return;
+
+            string text = txtDoctorID.Text.Trim();
+
+            if (string.IsNullOrEmpty(text))
+            {
+                _dtDoctorCourses.DefaultView.RowFilter = "";
+                return;
+            }
+
+            if (int.TryParse(text, out int DoctorID))
+            {
+                _dtDoctorCourses.DefaultView.RowFilter =
+                    $"DoctorID = {DoctorID}";
+            }
+            else
+            {
+                _dtDoctorCourses.DefaultView.RowFilter = "";
+            }
+        }
+    }
+}
