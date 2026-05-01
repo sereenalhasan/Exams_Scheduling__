@@ -1,0 +1,101 @@
+namespace LogIn_Uni
+{
+    public partial class frmLogIn : Form
+    {
+        public frmLogIn()
+        {
+            InitializeComponent();
+        }
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+
+            LinearGradientBrush brush = new LinearGradientBrush(
+                this.ClientRectangle,
+                Color.FromArgb(255, 204, 128),   // اللون الأول
+                Color.FromArgb(0, 128, 128), // اللون الثاني
+                90f); // زاوية التدرج
+
+            e.Graphics.FillRectangle(brush, this.ClientRectangle);
+        }
+
+        private void gradientButton1_Click(object sender, EventArgs e)
+        {
+            string UserName = txtName.Text.ToString().Trim();
+            string Password = txtPass.Text.ToString().Trim();
+
+
+            UserData User = UserData.FindUserByUserNameAndPassword(UserName, Password);
+            if (User != null)
+            {
+                if (chkRememberME.Checked)
+                {
+                    Gloable.clsGloable.RememberUserNameNameAndPassword(UserName, Password);
+                }
+                else
+                {
+                    Gloable.clsGloable.RememberUserNameNameAndPassword("", "");
+                }
+            }
+        }
+
+        private void btnLogIn_Click(object sender, EventArgs e)
+        {
+            string UserName = txtName.Text.ToString().Trim();
+            string Password = txtPass.Text.ToString().Trim();
+
+
+            UserData User = UserData.FindUserByUserNameAndPassword(UserName, Password);
+            if (User != null)
+            {
+                if (ckbRememberME.Checked)
+                {
+                    clsGloable.RememberUserNameNameAndPassword(UserName, Password);
+                }
+                else
+                {
+                    clsGloable.RememberUserNameNameAndPassword("", "");
+                }
+
+                //if the user is not active
+                if (!User.IsActive)
+                {
+                    txtUserName.Focus();
+                    MessageBox.Show("Your Account Is Not Active , Contact Admin.", "InActive Account",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                clsGloable.CurrentUser = User;
+            //    FrmOptions frm = new FrmOptions(this);
+                this.Hide();
+
+                //frm.Show();
+                UserType.CheckUserType(this);
+
+
+            }
+            else
+            {
+                txtUserName.Focus();
+                MessageBox.Show("Invalid UserName/Password.", "Wrong Credentials", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void frmLogIn_Load_1(object sender, EventArgs e)
+        {
+            string UserName = "", Password = "";
+            if (clsGloable.GetStoredCredential(ref UserName, ref Password))
+            {
+                txtName.Text = UserName;
+                txtPass.Text = Password;
+                ckbRememberME.Checked = true;
+            }
+            else
+                ckbRememberME.Checked = true;
+            ckbRememberME.Checked = false;
+        }
+
+      
+    }
+}
