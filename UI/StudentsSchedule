@@ -1,0 +1,32 @@
+namespace LogIn_Uni.StudentsUsers
+{
+    public partial class frmStudentsMainScreen : Form
+    {
+        public frmStudentsMainScreen()
+        {
+            InitializeComponent();
+        }
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+
+            LinearGradientBrush brush = new LinearGradientBrush(
+                this.ClientRectangle,
+                Color.FromArgb(255, 204, 128),   // اللون الأول
+                Color.FromArgb(0, 128, 128), // اللون الثاني
+                90f); // زاوية التدرج
+
+            e.Graphics.FillRectangle(brush, this.ClientRectangle);
+        }
+        private void frmStudentsMainScreen_Load(object sender, EventArgs e)
+        {
+            
+                int studentID = clsGloable.CurrentUser.StudentID;
+
+                dgvStudentSchedule.DataSource =
+                    clsStudentSchedule.GetAllStudentsCourses(studentID);
+
+            dgvStudentSchedule.AutoSizeColumnsMode =
+                    DataGridViewAutoSizeColumnsMode.Fill;
+            
+        }
